@@ -490,3 +490,53 @@ fn wheel_family_index_clamps_to_the_ends() {
     assert_eq!(super::wheel_family_index(1, 3, 0.0), None);
     assert_eq!(super::wheel_family_index(0, 0, -1.0), None);
 }
+
+#[test]
+fn pro_theme_with_properties_panel_live_previews_hovered_font() {
+    use crate::{PhotocraftApp, Services};
+    use photocraft_doc::LayerContent;
+    use serde_json::json;
+
+    struct AppWithProps {
+        app: PhotocraftApp,
+    }
+
+    impl eframe::App for AppWithProps {
+        fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            crate::type_font_preview::follow_hover(&mut self.app, ctx);
+        }
+
+        fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+            ui.horizontal(|ui| crate::type_tool::options_bar(&mut self.app, ui));
+            if let Some(st) = self.app.session.active()
+                && let Some(al) = st.active_layer
+                && let Some(layer) = st.doc.layer(al)
+            {
+                let layer = layer.clone();
+                crate::layer_props_ui::properties(&mut self.app, ui, &layer);
+            }
+        }
+    }
+
+    let mut h = Harness::builder().with_size(vec2(900.0, 700.0)).build_eframe(|cc| {
+        PhotocraftApp::setup_context(&cc.egui_ctx, crate::theme::ThemeKind::Pro);
+        AppWithProps { app: PhotocraftApp::new(photocraft_engine::Session::new(), Services::default()) }
+    });
+    h.state_mut().app.run("file.new", json!({"width": 200, "height": 100})).unwrap();
+    h.state_mut().app.run("type.create", json!({"text": "Sample", "font": "Inter", "size": 18})).unwrap();
+    let layer = h.state().app.session.active().unwrap().active_layer.unwrap();
+    h.state_mut().app.ui.tool = crate::state::Tool::Type;
+    h.run_steps(3);
+    h.query_all_by_role(Role::ComboBox).next().unwrap().click();
+    h.run();
+    h.query_all_by_role(Role::TextInput).find(|n| n.is_focused()).unwrap().type_text("JetBrains Mono");
+    h.run();
+    h.get_by_label("JetBrains Mono").hover();
+    h.run();
+
+    let (preview, _) = crate::canvas::display_doc(&mut h.state_mut().app, 0);
+    let LayerContent::Text(preview_text) = &preview.layer(layer).unwrap().content else {
+        panic!("type layer");
+    };
+    assert_eq!(preview_text.char_runs()[0].style.font_family, "JetBrains Mono");
+}

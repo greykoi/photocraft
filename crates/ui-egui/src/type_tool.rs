@@ -1398,8 +1398,8 @@ pub(crate) fn fonts_ready(ui: &mut egui::Ui, width: f32) -> bool {
 }
 
 /// Searchable font-family combo box.
-fn font_picker(ui: &mut egui::Ui, current: &mut String, width: f32, preview: photocraft_engine::prefs::FontPreview) -> bool {
-    family_picker_in(ui, "type-font", current, width, &families(), preview)
+fn font_picker(ui: &mut egui::Ui, salt: &str, current: &mut String, width: f32, preview: photocraft_engine::prefs::FontPreview) -> bool {
+    family_picker_in(ui, salt, current, width, &families(), preview)
 }
 
 /// Maximum height of the font menu.
@@ -1549,11 +1549,11 @@ pub(crate) fn family_picker_in(
         }
     }
 
-    if salt == "type-font" {
+    if salt == "type-font" || salt == "props-type-font" {
         let hover_id = egui::Id::new("type-font-hover");
         if let Some(f) = hovered_font {
             ui.ctx().data_mut(|d| d.insert_temp(hover_id, f));
-        } else {
+        } else if egui::ComboBox::is_open(ui.ctx(), response.response.id) {
             ui.ctx().data_mut(|d| d.remove::<String>(hover_id));
         }
     }
@@ -1713,7 +1713,7 @@ pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     }
     // Font family and style menus (one placeholder in their place while the fonts load).
     if fonts_ready(ui, 170.0 + ui.spacing().item_spacing.x + 110.0) {
-        if font_picker(ui, &mut fam, 170.0, app.session.prefs().type_.font_preview) {
+        if font_picker(ui, "type-font", &mut fam, 170.0, app.session.prefs().type_.font_preview) {
             app.ui.tool_options.type_font = fam.clone();
             let st = styles(&fam);
             style = if st.contains(&style) { style } else { st.first().cloned().unwrap_or_else(|| "Regular".into()) };
@@ -2131,7 +2131,7 @@ fn type_sections(app: &mut PhotocraftApp, ui: &mut egui::Ui, character: bool, pa
         let mut ready = true;
         row(ui, &mut |ui| {
             ready = fonts_ready(ui, full);
-            if ready && font_picker(ui, &mut fam, full, app.session.prefs().type_.font_preview) {
+            if ready && font_picker(ui, "props-type-font", &mut fam, full, app.session.prefs().type_.font_preview) {
                 app.ui.tool_options.type_font = fam.clone();
                 apply(app, ui.ctx(), json!({"font": fam}));
             }
